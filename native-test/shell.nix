@@ -32,4 +32,3 @@ in
       zlib
     ];
   }
-  # --set LD_DEBUG "all"

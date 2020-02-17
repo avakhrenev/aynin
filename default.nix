@@ -7,7 +7,9 @@ let
     sha256 = "154nrhmm3dk5kmga2w5f7a2l6j79dvizrg4wzbrcwlbvdvapdgkb";
   };
   pkgs = import nixpkgs {};
-  sbt = pkgs.sbt.overrideAttrs (oldAttrs: rec {
+  version = "0.1";
+  # scala-native 0.4.0-M2 only works with sbt-0.13.x. Next 0.4 version should be able to work with sbt 1.3.x
+  old-sbt = pkgs.sbt.overrideAttrs (oldAttrs: rec {
     version = "0.13.18";
     src = pkgs.fetchurl {
       urls = [
@@ -16,20 +18,80 @@ let
       ];
       sha256 = "0cdkhcys0wj0h5430m3zb8z6rp5pbr8yph8gw7qycqwfr8i27s5g";
     };
-    buildInputs = [ pkgs.makeWrapper ];
-    postFixup = with pkgs; ''
-    wrapProgram $out/bin/sbt \
-      --set CLANG_PATH      "${llvmPackages.clang}/bin/clang" \
-      --set CLANGPP_PATH    "${llvmPackages.clang}/bin/clang" \
-      --set CPATH           "${lib.makeSearchPathOutput "dev" "include" [ re2 zlib boehmgc libunwind llvmPackages.libcxxabi llvmPackages.libcxx ]}/c++/v1" \
-      --set LIBRARY_PATH    "${lib.makeLibraryPath [ re2 zlib boehmgc libunwind llvmPackages.libcxxabi llvmPackages.libcxx ]}" \
-      --set NIX_CFLAGS_LINK "-lc++abi -lc++"
-    '';
   });
+  # Make sure we only consider ony relevant parts of the source files
+  scala-native-source = pkgs.runCommand "scala-native-source" {envVariable = true;} ''
+    mkdir -p $out/project
+    cp -r ${./native-test/src} $out/src
+    cp ${./native-test/build.sbt} $out/build.sbt
+    cp ${./native-test/project/build.properties} $out/project/build.properties
+    cp ${./native-test/project/scala-native.sbt} $out/project/scala-native.sbt
+  '';
+  # Options to run sbt to make it dump dependencies into workdir
+  SBT_OPTS = ''
+   -Dsbt.ivy.home=./deps/.ivy2/
+   -Dsbt.boot.directory=./deps/.sbt/boot/
+   -Dsbt.global.base=./deps/.sbt
+   -Dsbt.global.staging=./deps/.staging
+  '';
+  # Download dependencies
+  scala-native-deps = pkgs.stdenv.mkDerivation {
+    pname = "count-random-deps";
+    inherit version SBT_OPTS;
+    buildInputs = [ old-sbt ];
+    src = scala-native-source;
+    # Running `compile` to retrieve compiler-interface.
+    # Remove source files so we don't spend time compiling.
+    buildPhase = ''
+      rm -rf ./src/main/scala/*
+      echo "object Hello { }" > ./src/main/scala/Hello.scala
+      sbt "all update compile"
+    '';
+    installPhase = ''
+      mkdir -p $out
+      cp -r ./deps/. $out
+    '';
+    outputHashMode = "recursive";
+    outputHashAlgo = "sha256";
+    outputHash = "1m308xkrdj7bmri7bw53x11l4vb3zd5hqh5gp2impw7b0h2w1krp";
+  };
 in
-  pkgs.mkShell {
-    buildInputs = [
-      sbt
+  pkgs.stdenv.mkDerivation {
+    pname = "count-random";
+    inherit version SBT_OPTS;
+    CLANG_PATH = pkgs.clang + "/bin/clang";
+    CLANGPP_PATH = pkgs.clang + "/bin/clang++";
+    # set environment variable to affect all SBT commands
 
+    buildInputs = with pkgs; [
+      boehmgc
+      clang
+      libunwind
+      old-sbt
+      openjdk
+      stdenv
+      re2
+      zlib
     ];
+
+    nativeBuildInputs = with pkgs; [
+      boehmgc
+      clang
+      libunwind
+      stdenv
+      re2
+      zlib
+    ];
+    src = scala-native-source;
+    buildPhase = ''
+      mkdir -p ./deps
+      cp -r ${scala-native-deps}/. ./deps
+      # sbt tries to write to sbt.lock or ivy.lock e.t.c.
+      chmod -R +w ./deps
+      sbt nativeLink
+    '';
+    installPhase = ''
+      mkdir -p $out/bin
+      cp target/scala-2.11/count-random-out $out/bin/count-random
+    '';
   }
