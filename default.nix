@@ -38,25 +38,34 @@ let
   scala-native-deps = pkgs.stdenv.mkDerivation {
     pname = "count-random-deps";
     inherit version SBT_OPTS;
-    buildInputs = [ old-sbt ];
+    buildInputs = [ old-sbt pkgs.findutils ];
     src = scala-native-source;
     # Running `compile` to retrieve compiler-interface.
     # Remove source files so we don't spend time compiling.
     buildPhase = ''
+      mkdir -p ./deps/.ivy2/local
+      cp -r ${old-sbt}/share/sbt/lib/local-preloaded/. ./deps/.ivy2/local
       rm -rf ./src/main/scala/*
       echo "object Hello { }" > ./src/main/scala/Hello.scala
       sbt "all update compile"
     '';
     installPhase = ''
+      find ./deps/ -name "ivydata-*.properties" -delete
+      find ./deps/ -name "*.lock"               -delete
+      find ./deps/ -name "*.log"                -delete
+      # Seems like this output is non-determenistic
+      find ./deps/.ivy2/cache/org.scala-sbt -name "org.scala-sbt-compiler-interface-*" -print -exec rm -rf {} +
+      find ./deps/.sbt/boot/scala-2.10.7/org.scala-sbt/sbt/ -name "org.scala-sbt-compiler-interface-*" -print -exec rm -rf {} +
       mkdir -p $out
       cp -r ./deps/. $out
     '';
+    # find ./deps/.sbt/boot -name "org.scala-sbt-compiler-interface-*" -print -delete
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "1m308xkrdj7bmri7bw53x11l4vb3zd5hqh5gp2impw7b0h2w1krp";
+    outputHash = "0f32l8xnb7za1cbb6gpb0zhw0ndv8734bp6xwzvcmbp68acmm3nd";
   };
-in
-  pkgs.stdenv.mkDerivation {
+
+  all-things = pkgs.stdenv.mkDerivation {
     pname = "count-random";
     inherit version SBT_OPTS;
     CLANG_PATH = pkgs.clang + "/bin/clang";
@@ -94,4 +103,5 @@ in
       mkdir -p $out/bin
       cp target/scala-2.11/count-random-out $out/bin/count-random
     '';
-  }
+  };
+in all-things
