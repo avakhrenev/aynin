@@ -14,7 +14,7 @@ let
       sha256 = "0cdkhcys0wj0h5430m3zb8z6rp5pbr8yph8gw7qycqwfr8i27s5g";
     };
   });
-  # Make sure we only consider ony relevant parts of the source files
+  # Make sure we consider only relevant source files
   scala-native-source = pkgs.runCommand "${project-name}-source" { } ''
     mkdir -p $out/project
     cp -r ${./src} $out/src
