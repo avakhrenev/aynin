@@ -1,4 +1,5 @@
 let
+  project-name = "random-sum";
   nixpkgs = builtins.fetchTarball {
     # Descriptive name to make the store path easier to identify
     name = "nixpkgs-aynin";
@@ -20,23 +21,24 @@ let
     };
   });
   # Make sure we only consider ony relevant parts of the source files
-  scala-native-source = pkgs.runCommand "scala-native-source" {envVariable = true;} ''
+  scala-native-source = pkgs.runCommand "${project-name}-source" { } ''
     mkdir -p $out/project
-    cp -r ${./native-test/src} $out/src
-    cp ${./native-test/build.sbt} $out/build.sbt
-    cp ${./native-test/project/build.properties} $out/project/build.properties
-    cp ${./native-test/project/scala-native.sbt} $out/project/scala-native.sbt
+    cp -r ${./src} $out/src
+    cp ${./build.sbt} $out/build.sbt
+    cp ${./project/build.properties} $out/project/build.properties
+    cp ${./project/scala-native.sbt} $out/project/scala-native.sbt
   '';
   # Options to run sbt to make it dump dependencies into workdir
+  # and also use them from there.
   SBT_OPTS = ''
    -Dsbt.ivy.home=./deps/.ivy2/
    -Dsbt.boot.directory=./deps/.sbt/boot/
    -Dsbt.global.base=./deps/.sbt
    -Dsbt.global.staging=./deps/.staging
   '';
-  # Download dependencies
+  # Actually download dependencies
   scala-native-deps = pkgs.stdenv.mkDerivation {
-    pname = "count-random-deps";
+    pname = "${project-name}-deps";
     inherit version SBT_OPTS;
     buildInputs = [ old-sbt pkgs.findutils ];
     src = scala-native-source;
@@ -59,18 +61,22 @@ let
       mkdir -p $out
       cp -r ./deps/. $out
     '';
-    # find ./deps/.sbt/boot -name "org.scala-sbt-compiler-interface-*" -print -delete
+    # This is fixed-output derivation, so sbt is allowed to hit network.
+    # In return we have to tell nix what exactly we are going to build beforehand
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
     outputHash = "0f32l8xnb7za1cbb6gpb0zhw0ndv8734bp6xwzvcmbp68acmm3nd";
   };
 
-  all-things = pkgs.stdenv.mkDerivation {
-    pname = "count-random";
+  result = pkgs.stdenv.mkDerivation {
+    pname = project-name;
+    # set environment variables
     inherit version SBT_OPTS;
     CLANG_PATH = pkgs.clang + "/bin/clang";
     CLANGPP_PATH = pkgs.clang + "/bin/clang++";
-    # set environment variable to affect all SBT commands
+    # so we won't confuse build-time and runtime dependencies
+    # it's important when cross-building
+    strictDeps = true;
 
     buildInputs = with pkgs; [
       boehmgc
@@ -84,12 +90,12 @@ let
     ];
 
     nativeBuildInputs = with pkgs; [
-      boehmgc
-      clang
-      libunwind
-      stdenv
-      re2
-      zlib
+      # boehmgc
+      # clang
+      # libunwind
+      # stdenv
+      # re2
+      # zlib
     ];
     src = scala-native-source;
     buildPhase = ''
@@ -104,4 +110,4 @@ let
       cp target/scala-2.11/count-random-out $out/bin/count-random
     '';
   };
-in all-things
+in result

@@ -1,5 +1,6 @@
 *.class
 *.log
-.idea
+.idea/
+.metals/
 target/
 lowered.hnir
