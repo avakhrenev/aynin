@@ -1,13 +1,6 @@
 let
   project-name = "random-sum";
-  nixpkgs = builtins.fetchTarball {
-    # Descriptive name to make the store path easier to identify
-    name = "nixpkgs-aynin";
-    # Commit hash
-    url = https://github.com/nixos/nixpkgs/archive/8130f3c1c2bb0e533b5e150c39911d6e61dcecc2.tar.gz;
-    sha256 = "154nrhmm3dk5kmga2w5f7a2l6j79dvizrg4wzbrcwlbvdvapdgkb";
-  };
-  pkgs = import nixpkgs {};
+  pkgs = (import ./nixpkgs.nix).pkgs;
   version = "0.1";
   # scala-native 0.4.0-M2 only works with sbt-0.13.x. Next 0.4 version should be able to work with sbt 1.3.x
   old-sbt = pkgs.sbt.overrideAttrs (oldAttrs: rec {
@@ -70,34 +63,28 @@ let
 
   result = pkgs.stdenv.mkDerivation {
     pname = project-name;
-    # set environment variables
     inherit version SBT_OPTS;
     CLANG_PATH = pkgs.clang + "/bin/clang";
     CLANGPP_PATH = pkgs.clang + "/bin/clang++";
-    # so we won't confuse build-time and runtime dependencies
-    # it's important when cross-building
-    strictDeps = true;
 
+    src = scala-native-source;
+    # use strictDeps so we won't confuse build-time and runtime dependencies
+    # it's important when cross-building (i.e. building docker on MacOS)
+    strictDeps = true;
+    # nativeBuildInputs are used on a local platform during build-time
+    nativeBuildInputs = with pkgs; [
+      old-sbt
+      clang
+    ];
+    # buildInputs are used on host platform during runtime
+    # we may add excessive inputs, nix will strip irrelevant deps
+    # after build. Google "nix automatic runtime dependencies".
     buildInputs = with pkgs; [
       boehmgc
-      clang
       libunwind
-      old-sbt
-      openjdk
-      stdenv
       re2
       zlib
     ];
-
-    nativeBuildInputs = with pkgs; [
-      # boehmgc
-      # clang
-      # libunwind
-      # stdenv
-      # re2
-      # zlib
-    ];
-    src = scala-native-source;
     buildPhase = ''
       mkdir -p ./deps
       cp -r ${scala-native-deps}/. ./deps
@@ -107,7 +94,7 @@ let
     '';
     installPhase = ''
       mkdir -p $out/bin
-      cp target/scala-2.11/count-random-out $out/bin/count-random
+      cp target/scala-2.11/random-sum-out $out/bin/random-sum
     '';
   };
 in result
