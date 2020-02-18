@@ -1,3 +1,4 @@
+{ pkgs ? (import ./nixpkgs.nix).pkgs }:
 let
   project-name = "random-sum";
   pkgs = (import ./nixpkgs.nix).pkgs;
