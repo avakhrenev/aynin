@@ -1,7 +1,7 @@
-# aynin
-All you need is nix, nix. Nix is all you need.
-
-
+# What is it?
+It is scala-native helloworld project, which doesn't require any setup besides having [nix](https://nixos.org/nix/), all
+required dependencies are provided by it. Moreover, it demonstrates how to package scala-native program to nix, so it could
+be used elsewhere.
 
 ```
 nix-build
