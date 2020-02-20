@@ -1,7 +1,6 @@
 { pkgs ? (import ./nixpkgs.nix).pkgs }:
 let
   project-name = "random-sum";
-  pkgs = (import ./nixpkgs.nix).pkgs;
   version = "0.1";
   # scala-native 0.4.0-M2 only works with sbt-0.13.x. Next 0.4 version should be able to work with sbt 1.3.x
   old-sbt = pkgs.sbt.overrideAttrs (oldAttrs: rec {
